@@ -1,61 +1,100 @@
 import os
+from datetime import timedelta
 
-from flask import Flask
+from flask import Flask, jsonify
+from flask_cors import CORS
+from flask_jwt_extended import JWTManager
+from flask_socketio import SocketIO
 
-from app.database import initialize_database
-from app.errors import register_error_handlers
-from app.extensions import cors, socketio
-from app.routes import register_blueprints
-from config import config_by_name
+from app.database import get_database, initialize_database
 
 
-def create_app(config_name=None):
+jwt = JWTManager()
+
+socketio = SocketIO(
+    cors_allowed_origins="*",
+    async_mode="threading",
+)
+
+
+def create_app():
     app = Flask(__name__)
 
-    if config_name is None:
-        config_name = os.getenv(
-            "FLASK_ENV",
-            "development",
-        )
-
-    selected_config = config_by_name.get(
-        config_name,
-        config_by_name["development"],
+    app.config["SECRET_KEY"] = os.getenv(
+        "SECRET_KEY",
+        "chescure-flask-development-secret",
     )
 
-    app.config.from_object(selected_config)
+    app.config["JWT_SECRET_KEY"] = os.getenv(
+        "JWT_SECRET_KEY",
+        "chescure-jwt-development-secret",
+    )
 
-    initialize_extensions(app)
+    app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=2)
+
+    CORS(app)
+
+    jwt.init_app(app)
+
+    # This line fixes the SocketIO NoneType error.
+    socketio.init_app(
+        app,
+        cors_allowed_origins="*",
+    )
+
     initialize_database(app)
-    register_blueprints(app)
-    register_error_handlers(app)
+
+    from app.auth import auth_blueprint
+    from app.games import games_blueprint
+
+    app.register_blueprint(games_blueprint)
+    app.register_blueprint(auth_blueprint)
 
     @app.get("/")
     def home():
-        return {
-            "success": True,
-            "message": "Chescure backend is running",
-            "health_url": "/api/health",
-            "database_health_url": "/api/health/database",
-        }, 200
+        return jsonify(
+            {
+                "success": True,
+                "message": "ChessCure backend is running",
+                "health_url": "/api/health",
+                "database_health_url": "/api/health/database",
+            }
+        )
+
+    @app.get("/api/health")
+    def health():
+        return jsonify(
+            {
+                "success": True,
+                "status": "healthy",
+                "message": "ChessCure API is healthy",
+            }
+        )
+
+    @app.get("/api/health/database")
+    def database_health():
+        try:
+            database = get_database()
+            database.command("ping")
+
+            return jsonify(
+                {
+                    "success": True,
+                    "connected": True,
+                    "database": database.name,
+                    "status": "healthy",
+                    "message": "MongoDB connection successful",
+                }
+            ), 200
+
+        except Exception as error:
+            return jsonify(
+                {
+                    "success": False,
+                    "connected": False,
+                    "status": "unhealthy",
+                    "message": str(error),
+                }
+            ), 500
 
     return app
-
-
-def initialize_extensions(app):
-    frontend_url = app.config["FRONTEND_URL"]
-
-    cors.init_app(
-        app,
-        resources={
-            r"/api/*": {
-                "origins": [frontend_url],
-            }
-        },
-        supports_credentials=True,
-    )
-
-    socketio.init_app(
-        app,
-        cors_allowed_origins=[frontend_url],
-    )

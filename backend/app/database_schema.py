@@ -43,7 +43,7 @@ COLLECTION_SCHEMAS = {
                     "bsonType": "objectId",
                 },
                 "black_player_id": {
-                    "bsonType": "objectId",
+                    "bsonType": ["objectId", "null"],
                 },
                 "status": {
                     "enum": [

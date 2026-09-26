@@ -1,43 +1,43 @@
-from flask import current_app
+import os
+
 from pymongo import MongoClient
-from pymongo.errors import PyMongoError
 
 
-def initialize_database(app):
-    mongo_uri = app.config["MONGO_URI"]
-    database_name = app.config["MONGO_DB_NAME"]
+mongo_client = None
+database = None
 
-    client = MongoClient(
-        mongo_uri,
-        serverSelectionTimeoutMS=5000,
-        connectTimeoutMS=5000,
+
+def initialize_database(app=None):
+    global mongo_client, database
+
+    mongo_uri = os.getenv(
+        "MONGO_URI",
+        "mongodb://127.0.0.1:27017",
     )
 
-    database = client[database_name]
+    database_name = os.getenv(
+        "MONGO_DB_NAME",
+        "chescure_db",
+    )
 
-    app.extensions["mongo_client"] = client
-    app.extensions["mongo_db"] = database
+    mongo_client = MongoClient(
+        mongo_uri,
+        serverSelectionTimeoutMS=5000,
+    )
+
+    mongo_client.admin.command("ping")
+    database = mongo_client[database_name]
+
+    print(f"Connected to MongoDB database: {database_name}")
+
+    return database
 
 
 def get_database():
-    return current_app.extensions["mongo_db"]
+    if database is None:
+        raise RuntimeError(
+            "Database has not been initialized. "
+            "Call initialize_database() first."
+        )
 
-
-def check_database_connection():
-    try:
-        client = current_app.extensions["mongo_client"]
-
-        client.admin.command("ping")
-
-        return {
-            "connected": True,
-            "message": "MongoDB connection successful",
-            "database": current_app.config["MONGO_DB_NAME"],
-        }
-
-    except PyMongoError as error:
-        return {
-            "connected": False,
-            "message": "MongoDB connection failed",
-            "error": str(error),
-        }
+    return database
