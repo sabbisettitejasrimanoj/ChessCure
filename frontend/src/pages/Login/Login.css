@@ -1,0 +1,62 @@
+.auth-page {
+  --auth-surface: rgba(16, 31, 52, 0.82);
+  --auth-surface-strong: rgba(6, 18, 34, 0.64);
+  --auth-border: rgba(163, 193, 224, 0.16);
+  --auth-text: #f6f3ec;
+  --auth-muted: #9baabd;
+  --auth-blue: #4d9dff;
+  --auth-gold: #e6ba62;
+  align-items: center;
+  background: radial-gradient(circle at 50% -8%, rgba(48, 110, 177, 0.3), transparent 38%), radial-gradient(circle at 100% 100%, rgba(21, 68, 111, 0.24), transparent 34%), #08111f;
+  box-sizing: border-box;
+  color: var(--auth-muted);
+  display: flex;
+  justify-content: center;
+  min-height: 100svh;
+  overflow: hidden;
+  padding: 42px 20px 36px;
+  position: relative;
+}
+
+.auth-page::before {
+  background: linear-gradient(90deg, transparent, rgba(230, 186, 98, 0.15), transparent);
+  content: '';
+  height: 1px;
+  left: 12%;
+  position: absolute;
+  top: 32px;
+  width: 76%;
+}
+
+.auth-shell { max-width: 438px; position: relative; width: 100%; z-index: 1; }
+.auth-hero { align-items: center; color: var(--auth-text); display: flex; flex-direction: column; margin: 0 auto 28px; text-align: center; text-decoration: none; }
+.auth-hero__mark { color: var(--auth-gold); filter: drop-shadow(0 8px 18px rgba(230, 186, 98, 0.22)); font-family: Georgia, serif; font-size: 4.6rem; line-height: 0.9; }
+.auth-hero__title { font-size: 1.55rem; font-weight: 700; letter-spacing: 0.08em; margin-top: 12px; }
+.auth-hero__subtitle { color: var(--auth-muted); font-size: 0.92rem; margin-top: 7px; }
+.auth-card.ui-card { backdrop-filter: blur(22px); background: var(--auth-surface); border: 1px solid var(--auth-border); border-radius: 22px; box-shadow: 0 28px 80px rgba(1, 8, 18, 0.48), inset 0 1px 0 rgba(255, 255, 255, 0.04); color: var(--auth-muted); }
+.auth-card__intro { margin-bottom: 28px; text-align: center; }
+.auth-card__eyebrow { color: var(--auth-gold); font-size: 0.7rem; font-weight: 700; letter-spacing: 0.18em; margin: 0 0 11px; text-transform: uppercase; }
+.auth-card__intro h1 { color: var(--auth-text); font-size: clamp(1.45rem, 4vw, 1.8rem); letter-spacing: -0.02em; line-height: 1.2; margin: 0 0 9px; }
+.auth-card__intro > p:last-child { color: var(--auth-muted); font-size: 0.9rem; margin: 0; }
+.auth-form { display: grid; gap: 17px; }
+.auth-form .ui-input__label { color: #d0d9e6; font-size: 0.78rem; font-weight: 600; }
+.auth-form .ui-input__control { background: var(--auth-surface-strong); border-color: rgba(163, 193, 224, 0.17); border-radius: 12px; color: var(--auth-text); min-height: 50px; padding: 11px 14px; }
+.auth-form .ui-input__control:focus { border-color: var(--auth-blue); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18); }
+.auth-form .ui-input__control::placeholder { color: #718198; }
+.auth-form__options { align-items: center; display: flex; justify-content: space-between; margin-top: -2px; }
+.auth-checkbox.ui-input { align-items: center; flex-direction: row-reverse; gap: 8px; justify-content: flex-end; }
+.auth-checkbox .ui-input__label { color: var(--auth-muted); cursor: pointer; font-size: 0.82rem; font-weight: 500; }
+.auth-checkbox .ui-input__control { accent-color: var(--auth-blue); min-height: auto; padding: 0; width: 16px; }
+.auth-link, .auth-switch__button { color: #7db7ff; font-size: 0.82rem; text-decoration: none; }
+.auth-link:hover, .auth-switch__button:hover { color: #b4d6ff; text-decoration: underline; }
+.auth-form .ui-button { background: linear-gradient(135deg, #55a7ff, #286bd4); border: 0; border-radius: 12px; box-shadow: 0 12px 26px rgba(28, 101, 205, 0.28); margin-top: 5px; min-height: 52px; }
+.auth-form .ui-button:hover:not(:disabled) { background: linear-gradient(135deg, #72b8ff, #347be4); transform: translateY(-1px); }
+.auth-switch { color: var(--auth-muted); font-size: 0.86rem; margin: 22px 0 0; text-align: center; }
+.auth-switch__button.ui-button { font: inherit; font-weight: 700; min-height: auto; padding: 0; }
+
+@media (max-width: 480px) {
+  .auth-page { padding: 34px 16px 26px; }
+  .auth-hero { margin-bottom: 24px; }
+  .auth-hero__mark { font-size: 4.1rem; }
+  .auth-card.ui-card { padding: 26px 20px; }
+}
