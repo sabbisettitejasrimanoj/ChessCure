@@ -1,34 +1,4 @@
 COLLECTION_SCHEMAS = {
-    "users": {
-        "$jsonSchema": {
-            "bsonType": "object",
-            "required": ["username", "email", "password_hash", "created_at"],
-            "properties": {
-                "username": {
-                    "bsonType": "string",
-                    "minLength": 3,
-                    "maxLength": 30,
-                },
-                "email": {
-                    "bsonType": "string",
-                },
-                "password_hash": {
-                    "bsonType": "string",
-                },
-                "rating": {
-                    "bsonType": "int",
-                    "minimum": 0,
-                },
-                "online": {
-                    "bsonType": "bool",
-                },
-                "created_at": {
-                    "bsonType": "date",
-                },
-            },
-        }
-    },
-
     "games": {
         "$jsonSchema": {
             "bsonType": "object",

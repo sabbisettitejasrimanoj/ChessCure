@@ -80,18 +80,6 @@ def ensure_index(collection, keys, unique=False):
 
 def create_indexes(database):
     ensure_index(
-        database.users,
-        [("email", ASCENDING)],
-        unique=True,
-    )
-
-    ensure_index(
-        database.users,
-        [("username", ASCENDING)],
-        unique=True,
-    )
-
-    ensure_index(
         database.games,
         [
             ("white_player_id", ASCENDING),
