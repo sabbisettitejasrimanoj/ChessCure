@@ -14,7 +14,7 @@ export function Brand({ compact = false }: { compact?: boolean }) {
       <span className="brand-mark" aria-hidden="true">♞</span>
       <span className="brand-copy">
         <span className="brand-name">Chess <b>Cure</b></span>
-        {!compact && <span className="brand-tagline">Looks like Chess. Protects your Privacy.</span>}
+        {!compact && <span className="brand-tagline">Thoughtful chess, every day.</span>}
       </span>
     </span>
   )
@@ -43,7 +43,7 @@ export function AppLayout({
             </NavLink>
           ))}
         </nav>
-        <div className="topbar-status"><span className="status-dot" /> Private by design</div>
+        <div className="topbar-status"><span className="status-dot" /> Board ready</div>
       </header>
       <main className={`page-content page-content--${width}`}>{children}</main>
       <nav className="mobile-nav" aria-label="Main navigation">

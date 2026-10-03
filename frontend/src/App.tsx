@@ -13,6 +13,7 @@ import {
   SplashPage,
 } from './pages/Screens'
 import './App.css'
+import './Product.css'
 
 function AnimatedRoutes() {
   const location = useLocation()
