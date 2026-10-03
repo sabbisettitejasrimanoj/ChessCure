@@ -54,6 +54,7 @@ COLLECTION_SCHEMAS = {
                 "game_id",
                 "move_number",
                 "player_id",
+                "actor",
                 "from_square",
                 "to_square",
                 "fen_after",
@@ -64,7 +65,10 @@ COLLECTION_SCHEMAS = {
                     "bsonType": "objectId",
                 },
                 "player_id": {
-                    "bsonType": "objectId",
+                    "bsonType": ["objectId", "null"],
+                },
+                "actor": {
+                    "enum": ["human", "ai"],
                 },
                 "move_number": {
                     "bsonType": "int",
