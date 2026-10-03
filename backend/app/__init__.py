@@ -1,4 +1,7 @@
-from flask import Flask, jsonify
+import os
+
+from flask_jwt_extended import JWTManager
+from flask import Flask, app, jsonify
 from flask_cors import CORS
 from flask_socketio import SocketIO
 
@@ -10,9 +13,19 @@ socketio = SocketIO(
     async_mode="threading",
 )
 
-
+jwt = JWTManager()
 def create_app():
     app = Flask(__name__)
+    app.config["JWT_SECRET_KEY"] = os.getenv(
+    "JWT_SECRET_KEY",
+    "chescure-jwt-development-secret",
+)
+
+    app.config["JWT_TOKEN_LOCATION"] = ["headers"]
+    app.config["JWT_HEADER_NAME"] = "Authorization"
+    app.config["JWT_HEADER_TYPE"] = "Bearer"
+
+    jwt.init_app(app)   
 
     CORS(app)
 
@@ -23,7 +36,7 @@ def create_app():
     )
 
     initialize_database(app)
-
+    
     from app.games import games_blueprint
 
     app.register_blueprint(games_blueprint)

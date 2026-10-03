@@ -1,6 +1,12 @@
 import chess
 from app.services.ai_engine import choose_ai_move
 from app.services.move_analyzer import analyze_human_move
+from bson import ObjectId
+from flask import jsonify, request
+from flask_jwt_extended import (
+    get_jwt_identity,
+    jwt_required,
+)
 
 from datetime import datetime, timezone
 
@@ -17,6 +23,16 @@ STARTING_FEN = (
 )
 
 VALID_AI_LEVELS = ["easy", "medium", "hard"]
+def current_user_object_id():
+    identity = get_jwt_identity()
+
+    if not identity:
+        return None
+
+    if not ObjectId.is_valid(identity):
+        return None
+
+    return ObjectId(identity)
 
 
 def serialize_game(game):
