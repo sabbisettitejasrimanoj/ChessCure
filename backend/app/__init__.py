@@ -1,17 +1,13 @@
 import os
 
 from flask_jwt_extended import JWTManager
-from flask import Flask, app, jsonify
-from flask_cors import CORS
-from flask_socketio import SocketIO
+from flask import Flask, jsonify
 
 from app.database import get_database, initialize_database
+from app.extensions import cors, socketio
 
-
-socketio = SocketIO(
-    cors_allowed_origins="*",
-    async_mode="threading",
-)
+# Importing this module registers Socket.IO event handlers.
+from app import realtime  # noqa: F401, E402
 
 jwt = JWTManager()
 def create_app():
@@ -27,7 +23,7 @@ def create_app():
 
     jwt.init_app(app)   
 
-    CORS(app)
+    cors.init_app(app)
 
     # This line fixes the SocketIO NoneType error.
     socketio.init_app(
@@ -38,8 +34,12 @@ def create_app():
     initialize_database(app)
     
     from app.games import games_blueprint
+    from app.secret_chat import secret_chat_blueprint
+    from app.auth import auth_blueprint
 
+    app.register_blueprint(auth_blueprint)
     app.register_blueprint(games_blueprint)
+    app.register_blueprint(secret_chat_blueprint)
 
     @app.get("/")
     def home():
@@ -88,4 +88,5 @@ def create_app():
                 }
             ), 500
 
+    
     return app

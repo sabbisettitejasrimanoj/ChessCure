@@ -1,6 +1,7 @@
 import chess
 from app.services.ai_engine import choose_ai_move
 from app.services.move_analyzer import analyze_human_move
+from app.realtime import emit_secret_chat_opened
 from bson import ObjectId
 from flask import jsonify, request
 from flask_jwt_extended import (
@@ -21,6 +22,7 @@ STARTING_FEN = (
     "rnbqkbnr/pppppppp/8/8/8/8/"
     "PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 )
+
 
 VALID_AI_LEVELS = ["easy", "medium", "hard"]
 def current_user_object_id():
@@ -174,12 +176,10 @@ def make_ai_move(game_id):
     user_id = current_user_object_id()
 
     if user_id is None:
-        return jsonify(
-            {
-                "success": False,
-                "message": "Invalid authentication token.",
-            }
-        ), 401
+        return jsonify({
+            "success": False,
+            "message": "Invalid authenticated user.",
+        }), 401
 
     if not ObjectId.is_valid(game_id):
         return jsonify(
@@ -729,3 +729,5 @@ def get_game_history(game_id):
             "state_is_consistent": state_is_consistent,
         }
     ), 200
+
+    

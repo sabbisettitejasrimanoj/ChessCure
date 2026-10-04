@@ -147,35 +147,43 @@ COLLECTION_SCHEMAS = {
     },
 
     "messages": {
-        "$jsonSchema": {
-            "bsonType": "object",
-            "required": [
-                "game_id",
-                "sender_id",
-                "content",
-                "created_at",
-            ],
-            "properties": {
-                "game_id": {
-                    "bsonType": "objectId",
-                },
-                "sender_id": {
-                    "bsonType": "objectId",
-                },
-                "content": {
-                    "bsonType": "string",
-                    "minLength": 1,
-                    "maxLength": 500,
-                },
-                "trigger_event_id": {
-                    "bsonType": ["objectId", "null"],
-                },
-                "created_at": {
-                    "bsonType": "date",
-                },
+    "$jsonSchema": {
+        "bsonType": "object",
+        "required": [
+            "game_id",
+            "sender_id",
+            "sender_type",
+            "content",
+            "read",
+            "created_at",
+        ],
+        "properties": {
+            "game_id": {
+                "bsonType": "objectId",
             },
-        }
-    },
+            "sender_id": {
+                "bsonType": ["objectId", "null"],
+            },
+            "sender_type": {
+                "enum": ["human", "ai", "system"],
+            },
+            "content": {
+                "bsonType": "string",
+                "minLength": 1,
+                "maxLength": 500,
+            },
+            "trigger_event_id": {
+                "bsonType": ["objectId", "null"],
+            },
+            "read": {
+                "bsonType": "bool",
+            },
+            "created_at": {
+                "bsonType": "date",
+            },
+        },
+    }
+},
 
     "reports": {
         "$jsonSchema": {
