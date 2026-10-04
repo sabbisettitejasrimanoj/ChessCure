@@ -31,6 +31,7 @@ class Config:
     )
 
     JSON_SORT_KEYS = False
+    INITIALIZE_DATABASE = True
 
 
 class DevelopmentConfig(Config):
@@ -40,6 +41,7 @@ class DevelopmentConfig(Config):
 class TestingConfig(Config):
     TESTING = True
     DEBUG = False
+    INITIALIZE_DATABASE = False
 
     MONGO_DB_NAME = "chescure_test_db"
 

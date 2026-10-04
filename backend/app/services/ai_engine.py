@@ -139,6 +139,12 @@ def choose_ai_move(board, level="medium"):
         return choose_easy_move(board)
 
     if level == "hard":
-        return choose_scored_move(board, depth=3)
+        return choose_scored_move(
+            board,
+            depth=3,
+        )
 
-    return choose_scored_move(board, depth=2)
+    return choose_scored_move(
+        board,
+        depth=2,
+    )

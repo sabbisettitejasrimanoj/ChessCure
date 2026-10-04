@@ -35,7 +35,7 @@ COLLECTION_SCHEMAS = {
                     "bsonType": "string",
                 },
                 "current_turn": {
-                    "enum": ["white", "black"],
+                    "enum": ["white", "black", None],
                 },
                 "created_at": {
                     "bsonType": "date",

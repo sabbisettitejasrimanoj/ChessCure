@@ -9,8 +9,8 @@ from app.extensions import cors, socketio
 # Importing this module registers Socket.IO event handlers.
 from app import realtime  # noqa: F401, E402
 
-jwt = JWTManager()
-def create_app():
+
+def create_app(config_name=None):
     app = Flask(__name__)
     app.config["JWT_SECRET_KEY"] = os.getenv(
     "JWT_SECRET_KEY",
@@ -58,27 +58,26 @@ def create_app():
             {
                 "success": True,
                 "status": "healthy",
-                "message": "ChessCure API is healthy",
+                "service": "ChessCure Backend",
             }
         )
 
     @app.get("/api/health/database")
     def database_health():
         try:
-            database = get_database()
-            database.command("ping")
-
+            current_database = get_database()
+            current_database.command("ping")
             return jsonify(
                 {
                     "success": True,
                     "connected": True,
-                    "database": database.name,
+                    "database": current_database.name,
                     "status": "healthy",
                     "message": "MongoDB connection successful",
                 }
             ), 200
-
         except Exception as error:
+            app.logger.exception("MongoDB health check failed")
             return jsonify(
                 {
                     "success": False,

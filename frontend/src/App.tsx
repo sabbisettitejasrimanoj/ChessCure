@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { GameProvider } from './context/GameContext'
+import { WelcomePage } from './pages/WelcomePage'
 import {
   DifficultyPage,
   GamePage,
@@ -13,6 +14,7 @@ import {
   SplashPage,
 } from './pages/Screens'
 import './App.css'
+import './Product.css'
 
 function AnimatedRoutes() {
   const location = useLocation()
@@ -28,7 +30,9 @@ function AnimatedRoutes() {
         transition={{ duration: 0.2, ease: 'easeOut' }}
       >
         <Routes location={location}>
-          <Route path="/" element={<SplashPage />} />
+          <Route path="/" element={<WelcomePage />} />
+          <Route path="/welcome" element={<WelcomePage />} />
+          <Route path="/splash" element={<SplashPage />} />
           <Route path="/home" element={<HomePage />} />
           <Route path="/difficulty" element={<DifficultyPage />} />
           <Route path="/game" element={<GamePage />} />
@@ -37,7 +41,7 @@ function AnimatedRoutes() {
           <Route path="/resume" element={<ResumePage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/profile" element={<ProfilePage />} />
-          <Route path="*" element={<Navigate to="/home" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </motion.div>
     </AnimatePresence>
