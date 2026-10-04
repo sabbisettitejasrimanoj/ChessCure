@@ -9,6 +9,7 @@ from app.extensions import cors, socketio
 # Importing this module registers Socket.IO event handlers.
 from app import realtime  # noqa: F401, E402
 
+jwt = JWTManager()
 
 def create_app(config_name=None):
     app = Flask(__name__)
@@ -31,7 +32,7 @@ def create_app(config_name=None):
         cors_allowed_origins="*",
     )
 
-    initialize_database(app)
+    initialize_database(app.config)
     
     from app.games import games_blueprint
     from app.secret_chat import secret_chat_blueprint
