@@ -7,6 +7,15 @@ import {
   type ReactNode,
 } from 'react'
 import { Chess, type Move, type Square } from 'chess.js'
+import {
+  createGame,
+  getGameHistory,
+  submitAiMove,
+  submitPlayerMove,
+  undoGameTurn,
+  type ApiGame,
+  type GameHistory,
+} from '../services/gameApi'
 
 export type Difficulty = 'Beginner' | 'Intermediate' | 'Advanced' | 'Expert'
 
@@ -18,101 +27,208 @@ type GameContextValue = {
   lastMove: Move | null
   turn: 'w' | 'b'
   gameOver: boolean
-  playerMoveCount: number
-  playHumanMove: (from: Square, to: Square) => boolean
-  undoMove: () => void
-  startNewGame: () => void
+  gameId: string | null
+  isBusy: boolean
+  apiError: string | null
+  clearApiError: () => void
+  playHumanMove: (from: Square, to: Square) => Promise<boolean>
+  retryAiMove: () => Promise<void>
+  undoMove: () => Promise<void>
+  startNewGame: () => Promise<boolean>
 }
 
 const GameContext = createContext<GameContextValue | null>(null)
 
-function moveScore(move: Move) {
-  const centralSquares = ['d4', 'e4', 'd5', 'e5']
-  return (move.captured ? 5 : 0)
-    + (move.promotion ? 8 : 0)
-    + (move.san.includes('+') ? 3 : 0)
-    + (centralSquares.includes(move.to) ? 1 : 0)
-    + Math.random() * 0.3
+function toDifficulty(value: string | undefined): Difficulty {
+  if (
+    value === 'Beginner'
+    || value === 'Intermediate'
+    || value === 'Advanced'
+    || value === 'Expert'
+  ) return value
+  return 'Intermediate'
 }
 
 export function GameProvider({ children }: { children: ReactNode }) {
   const engine = useRef(new Chess())
+  const gameIdRef = useRef<string | null>(null)
   const playerMoves = useRef(0)
   const verificationStarted = useRef(false)
   const [difficulty, setDifficulty] = useState<Difficulty>('Intermediate')
+  const [gameId, setGameId] = useState<string | null>(null)
   const [fen, setFen] = useState(engine.current.fen())
   const [history, setHistory] = useState<Move[]>([])
   const [turn, setTurn] = useState<'w' | 'b'>('w')
   const [gameOver, setGameOver] = useState(false)
+  const [isBusy, setIsBusy] = useState(false)
+  const [apiError, setApiError] = useState<string | null>(null)
 
-  function syncState() {
-    const currentHistory = engine.current.history({ verbose: true })
-    setFen(engine.current.fen())
-    setHistory(currentHistory)
+  function syncState(authoritativeFen?: string, status?: ApiGame['status']) {
+    const currentFen = authoritativeFen ?? engine.current.fen()
+    setFen(currentFen)
+    setHistory(engine.current.history({ verbose: true }))
     setTurn(engine.current.turn())
-    setGameOver(engine.current.isGameOver())
+    setGameOver(status === 'completed' || engine.current.isGameOver())
   }
 
-  function startNewGame() {
+  function restoreGame(snapshot: GameHistory) {
     engine.current = new Chess()
-    playerMoves.current = 0
-    verificationStarted.current = false
-    setHistory([])
-    setFen(engine.current.fen())
-    setTurn('w')
-    setGameOver(false)
-  }
-
-  function playHumanMove(from: Square, to: Square) {
-    if (engine.current.turn() !== 'w' || engine.current.isGameOver()) return false
-
-    try {
-      engine.current.move({ from, to, promotion: 'q' })
-    } catch {
-      return false
+    for (const move of snapshot.moves) {
+      engine.current.move({
+        from: move.from_square,
+        to: move.to_square,
+        promotion: move.uci.length === 5 ? move.uci[4] : undefined,
+      })
     }
-
-    playerMoves.current += 1
-    syncState()
-
-    if (playerMoves.current >= 2 && !verificationStarted.current) {
-      verificationStarted.current = true
-      return true
+    if (snapshot.moves.length === 0) {
+      engine.current = new Chess(snapshot.game.current_fen)
     }
-
-    return false
-  }
-
-  function undoMove() {
-    const wasWhiteToMove = engine.current.turn() === 'w'
-    const firstUndo = engine.current.undo()
-    if (!firstUndo) return
-
-    if (wasWhiteToMove) engine.current.undo()
-    playerMoves.current = Math.max(0, playerMoves.current - 1)
-    syncState()
+    setFen(snapshot.game.current_fen)
+    setHistory(engine.current.history({ verbose: true }))
+    setTurn(engine.current.turn())
+    setGameOver(snapshot.game.status === 'completed' || engine.current.isGameOver())
+    setDifficulty(toDifficulty(snapshot.game.difficulty))
+    playerMoves.current = snapshot.moves.filter((move) => move.actor === 'human').length
+    verificationStarted.current = playerMoves.current >= 2
+    gameIdRef.current = snapshot.game.id
+    setGameId(snapshot.game.id)
   }
 
   useEffect(() => {
-    const currentGame = engine.current
-    if (currentGame.turn() !== 'b' || currentGame.isGameOver()) return
+    let savedGameId: string | null
+    try {
+      savedGameId = window.localStorage.getItem('chess-cure-game-id')
+    } catch (error) {
+      setApiError(error instanceof Error ? error.message : 'Could not read the saved game ID.')
+      return
+    }
+    if (!savedGameId) return
 
-    const timeout = window.setTimeout(() => {
-      const legalMoves = engine.current.moves({ verbose: true })
-      const selectedMove = [...legalMoves]
-        .sort((first, second) => moveScore(second) - moveScore(first))[0]
-
-      if (!selectedMove) return
-      engine.current.move({
-        from: selectedMove.from,
-        to: selectedMove.to,
-        promotion: selectedMove.promotion,
+    let cancelled = false
+    setIsBusy(true)
+    getGameHistory(savedGameId)
+      .then((snapshot) => {
+        if (!cancelled) restoreGame(snapshot)
       })
-      syncState()
-    }, difficulty === 'Beginner' ? 450 : 750)
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setApiError(error instanceof Error ? error.message : 'Could not load the saved game.')
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setIsBusy(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
-    return () => window.clearTimeout(timeout)
-  }, [fen, difficulty])
+  async function startNewGame() {
+    setIsBusy(true)
+    setApiError(null)
+    try {
+      const game = await createGame(difficulty)
+      gameIdRef.current = game.id
+      setGameId(game.id)
+      try {
+        window.localStorage.setItem('chess-cure-game-id', game.id)
+      } catch (error) {
+        setApiError(
+          error instanceof Error
+            ? `Game started, but its ID could not be saved in this browser: ${error.message}`
+            : 'Game started, but its ID could not be saved in this browser.',
+        )
+      }
+      engine.current = new Chess(game.current_fen)
+      playerMoves.current = 0
+      verificationStarted.current = false
+      setHistory([])
+      setFen(game.current_fen)
+      setTurn(engine.current.turn())
+      setGameOver(false)
+      return true
+    } catch (error) {
+      setApiError(error instanceof Error ? error.message : 'Could not start a new game.')
+      return false
+    } finally {
+      setIsBusy(false)
+    }
+  }
+
+  async function requestAiMove() {
+    const currentGameId = gameIdRef.current
+    if (!currentGameId) throw new Error('Start a game before requesting an AI move.')
+    const result = await submitAiMove(currentGameId)
+    engine.current.move({
+      from: result.move.from_square,
+      to: result.move.to_square,
+      promotion: result.move.uci.length === 5 ? result.move.uci[4] : undefined,
+    })
+    syncState(result.game.current_fen, result.game.status)
+  }
+
+  async function playHumanMove(from: Square, to: Square) {
+    const currentGameId = gameIdRef.current
+    if (isBusy || !currentGameId || turn !== 'w' || engine.current.isGameOver()) return false
+
+    setIsBusy(true)
+    setApiError(null)
+    let shouldVerify = false
+    try {
+      const result = await submitPlayerMove(currentGameId, from, to)
+      engine.current.move({ from, to, promotion: 'q' })
+      playerMoves.current += 1
+      if (playerMoves.current >= 2 && !verificationStarted.current) {
+        verificationStarted.current = true
+        shouldVerify = true
+      }
+      syncState(result.game.current_fen, result.game.status)
+      if (result.game.current_turn === 'black' && result.game.status === 'active') {
+        try {
+          await requestAiMove()
+        } catch (error) {
+          setApiError(
+            error instanceof Error
+              ? `Your move was saved, but the AI move failed: ${error.message}`
+              : 'Your move was saved, but the AI move failed.',
+          )
+        }
+      }
+    } catch (error) {
+      setApiError(error instanceof Error ? error.message : 'Could not save your move.')
+      return false
+    } finally {
+      setIsBusy(false)
+    }
+    return shouldVerify
+  }
+
+  async function retryAiMove() {
+    setIsBusy(true)
+    setApiError(null)
+    try {
+      await requestAiMove()
+    } catch (error) {
+      setApiError(error instanceof Error ? error.message : 'Could not complete the AI move.')
+    } finally {
+      setIsBusy(false)
+    }
+  }
+
+  async function undoMove() {
+    const currentGameId = gameIdRef.current
+    if (!currentGameId || isBusy || history.length === 0) return
+    setIsBusy(true)
+    setApiError(null)
+    try {
+      const snapshot = await undoGameTurn(currentGameId)
+      restoreGame(snapshot)
+    } catch (error) {
+      setApiError(error instanceof Error ? error.message : 'Could not undo the last turn.')
+    } finally {
+      setIsBusy(false)
+    }
+  }
 
   const value: GameContextValue = {
     difficulty,
@@ -122,8 +238,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
     lastMove: history.at(-1) ?? null,
     turn,
     gameOver,
-    playerMoveCount: playerMoves.current,
+    gameId,
+    isBusy,
+    apiError,
+    clearApiError: () => setApiError(null),
     playHumanMove,
+    retryAiMove,
     undoMove,
     startNewGame,
   }

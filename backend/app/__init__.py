@@ -1,42 +1,33 @@
 import os
 
-from flask_jwt_extended import JWTManager
-from flask import Flask, app, jsonify
+from flask import Flask, jsonify
 from flask_cors import CORS
 from flask_socketio import SocketIO
 
 from app.database import get_database, initialize_database
+from app.errors import register_error_handlers
+from config import config_by_name
 
 
-socketio = SocketIO(
-    cors_allowed_origins="*",
-    async_mode="threading",
-)
+socketio = SocketIO(async_mode="threading")
 
-jwt = JWTManager()
-def create_app():
+
+def create_app(config_name=None):
     app = Flask(__name__)
-    app.config["JWT_SECRET_KEY"] = os.getenv(
-    "JWT_SECRET_KEY",
-    "chescure-jwt-development-secret",
-)
+    selected_config = config_name or os.getenv("FLASK_ENV", "development")
+    config_class = config_by_name.get(selected_config)
+    if config_class is None:
+        raise ValueError(f"Unknown Flask configuration: {selected_config}")
 
-    app.config["JWT_TOKEN_LOCATION"] = ["headers"]
-    app.config["JWT_HEADER_NAME"] = "Authorization"
-    app.config["JWT_HEADER_TYPE"] = "Bearer"
+    app.config.from_object(config_class)
+    register_error_handlers(app)
+    frontend_url = app.config["FRONTEND_URL"]
+    CORS(app, origins=[frontend_url])
+    socketio.init_app(app, cors_allowed_origins=[frontend_url])
 
-    jwt.init_app(app)   
+    if app.config["INITIALIZE_DATABASE"]:
+        initialize_database(app.config)
 
-    CORS(app)
-
-    # This line fixes the SocketIO NoneType error.
-    socketio.init_app(
-        app,
-        cors_allowed_origins="*",
-    )
-
-    initialize_database(app)
-    
     from app.games import games_blueprint
 
     app.register_blueprint(games_blueprint)
@@ -58,27 +49,26 @@ def create_app():
             {
                 "success": True,
                 "status": "healthy",
-                "message": "ChessCure API is healthy",
+                "service": "ChessCure Backend",
             }
         )
 
     @app.get("/api/health/database")
     def database_health():
         try:
-            database = get_database()
-            database.command("ping")
-
+            current_database = get_database()
+            current_database.command("ping")
             return jsonify(
                 {
                     "success": True,
                     "connected": True,
-                    "database": database.name,
+                    "database": current_database.name,
                     "status": "healthy",
                     "message": "MongoDB connection successful",
                 }
             ), 200
-
         except Exception as error:
+            app.logger.exception("MongoDB health check failed")
             return jsonify(
                 {
                     "success": False,

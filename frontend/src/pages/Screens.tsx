@@ -105,11 +105,10 @@ const difficulties: { name: Difficulty; detail: string; elo: string; Icon: typeo
 
 export function DifficultyPage() {
   const navigate = useNavigate()
-  const { difficulty, setDifficulty, startNewGame } = useGame()
+  const { difficulty, setDifficulty, startNewGame, isBusy, apiError } = useGame()
 
-  function beginMatch() {
-    startNewGame()
-    navigate('/game')
+  async function beginMatch() {
+    if (await startNewGame()) navigate('/game')
   }
 
   return (
@@ -132,7 +131,8 @@ export function DifficultyPage() {
             </button>
           ))}
         </div>
-        <button className="button button--primary button--wide" onClick={beginMatch}>Start Match <ArrowRight size={17} /></button>
+        {apiError && <p className="api-error" role="alert">{apiError}</p>}
+        <button className="button button--primary button--wide" onClick={beginMatch} disabled={isBusy}>{isBusy ? 'Starting…' : 'Start Match'} <ArrowRight size={17} /></button>
       </motion.section>
     </AppLayout>
   )
@@ -140,7 +140,21 @@ export function DifficultyPage() {
 
 export function GamePage() {
   const navigate = useNavigate()
-  const { difficulty, fen, history, lastMove, turn, gameOver, playHumanMove, undoMove } = useGame()
+  const {
+    difficulty,
+    fen,
+    history,
+    lastMove,
+    turn,
+    gameOver,
+    gameId,
+    isBusy,
+    apiError,
+    clearApiError,
+    playHumanMove,
+    retryAiMove,
+    undoMove,
+  } = useGame()
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     try {
       const savedTheme = window.localStorage.getItem('chess-cure-game-theme')
@@ -172,11 +186,11 @@ export function GamePage() {
     return () => window.clearTimeout(timeout)
   }, [navigate, showToast])
 
-  function selectSquare(square: Square) {
-    if (turn !== 'w' || gameOver) return
+  async function selectSquare(square: Square) {
+    if (turn !== 'w' || gameOver || isBusy || !gameId) return
     if (selected && legalTargets.includes(square)) {
-      const shouldVerify = playHumanMove(selected, square)
       setSelected(null)
+      const shouldVerify = await playHumanMove(selected, square)
       if (shouldVerify) setShowToast(true)
       return
     }
@@ -204,13 +218,14 @@ export function GamePage() {
         </div>
         <div className="game-layout">
           <div className="board-column">
-            <ChessBoard fen={fen} lastMove={lastMove} selected={selected} legalTargets={legalTargets} onSquareClick={selectSquare} disabled={turn !== 'w' || gameOver} />
-            <div className="player-bar"><span className="player-avatar">♙</span><span><strong>You</strong><small>{turn === 'w' ? 'Your move' : 'AI is thinking…'}</small></span><span className="player-rating">1,500</span></div>
+            <ChessBoard fen={fen} lastMove={lastMove} selected={selected} legalTargets={legalTargets} onSquareClick={selectSquare} disabled={turn !== 'w' || gameOver || isBusy || !gameId} />
+            <div className="player-bar"><span className="player-avatar">♙</span><span><strong>You</strong><small>{isBusy ? 'Saving your move…' : turn === 'w' ? 'Your move' : apiError ? 'AI move needs a retry' : 'AI is thinking…'}</small></span><span className="player-rating">1,500</span></div>
             <div className="game-controls">
-              <button onClick={undoMove} disabled={!history.length} aria-label="Undo last move"><RotateCcw size={18} /><span>Undo</span></button>
-              <button onClick={showHint} disabled={turn !== 'w' || gameOver} aria-label="Show a hint"><Lightbulb size={18} /><span>Hint</span></button>
+              <button onClick={() => void undoMove()} disabled={!history.length || isBusy} aria-label="Undo last turn"><RotateCcw size={18} /><span>Undo</span></button>
+              <button onClick={showHint} disabled={turn !== 'w' || gameOver || isBusy} aria-label="Show a hint"><Lightbulb size={18} /><span>Hint</span></button>
               <button onClick={() => setShowResign(true)} disabled={gameOver} aria-label="Resign from match"><Flag size={18} /><span>Resign</span></button>
             </div>
+            {apiError && <div className="api-error" role="alert"><span>{apiError}</span>{turn === 'b' && !gameOver && <button className="button button--quiet" onClick={() => { clearApiError(); void retryAiMove() }} disabled={isBusy}>Retry AI move</button>}</div>}
             {gameOver && <div className="game-result"><Award size={17} /> Match complete <button onClick={() => navigate('/home')}>Home</button></div>}
           </div>
           <aside className="game-aside">
@@ -337,7 +352,7 @@ function SettingRow({ Icon, title, description, children }: { Icon: typeof Volum
 
 export function ProfilePage() {
   const navigate = useNavigate()
-  const { history, difficulty, startNewGame } = useGame()
+  const { history, difficulty } = useGame()
   const played = Math.floor(history.length / 2)
   return (
     <AppLayout>
@@ -346,7 +361,7 @@ export function ProfilePage() {
         <div className="profile-card"><div className="profile-avatar-large">♙</div><div><span className="profile-member-label">PLAYER</span><h2>Chess Player</h2><p>Finding your next great move.</p></div><button className="icon-button" aria-label="Edit profile" title="Edit profile"><KeyRound size={17} /></button></div>
         <div className="profile-stats"><div><span className="stat-value">1,500</span><span className="stat-label">Rating</span></div><div><span className="stat-value">{played}</span><span className="stat-label">Moves played</span></div><div><span className="stat-value">{difficulty}</span><span className="stat-label">Last level</span></div></div>
         <div className="profile-note"><ShieldCheck size={20} /><span><strong>Every game is a chance to grow.</strong><small>Keep building your instincts, one move at a time.</small></span></div>
-        <button className="profile-play-button" onClick={() => { startNewGame(); navigate('/difficulty') }}>Start a new match <ArrowRight size={17} /></button>
+        <button className="profile-play-button" onClick={() => navigate('/difficulty')}>Start a new match <ArrowRight size={17} /></button>
       </motion.section>
     </AppLayout>
   )
