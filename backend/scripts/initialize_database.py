@@ -1,20 +1,13 @@
-import os
 from datetime import datetime, timezone
 
 from pymongo import ASCENDING, DESCENDING, MongoClient
 
 from app.database_schema import COLLECTION_SCHEMAS
+from config import Config
 
 
-MONGO_URI = os.getenv(
-    "MONGO_URI",
-    "mongodb://127.0.0.1:27017",
-)
-
-DATABASE_NAME = os.getenv(
-    "MONGO_DB_NAME",
-    "chescure_db",
-)
+MONGO_URI = Config.MONGO_URI
+DATABASE_NAME = Config.MONGO_DB_NAME
 
 
 def create_or_update_collection(database, collection_name, validator):

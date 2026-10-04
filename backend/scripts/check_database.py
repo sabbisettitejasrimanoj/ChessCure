@@ -1,17 +1,10 @@
-import os
-
 from pymongo import MongoClient
 
+from config import Config
 
-MONGO_URI = os.getenv(
-    "MONGO_URI",
-    "mongodb://127.0.0.1:27017",
-)
 
-DATABASE_NAME = os.getenv(
-    "MONGO_DB_NAME",
-    "chescure_db",
-)
+MONGO_URI = Config.MONGO_URI
+DATABASE_NAME = Config.MONGO_DB_NAME
 
 
 def check_database():

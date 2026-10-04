@@ -7,13 +7,6 @@ import {
   type ReactNode,
 } from 'react'
 import { Chess, type Move, type Square } from 'chess.js'
-import {
-  playMoveSound,
-  playCaptureSound,
-  playCheckSound,
-  playVictorySound,
-} from '../utils/sound'
-import type { PieceStyle } from '../components/ChessPieces'
 
 export type Difficulty = 'Beginner' | 'Intermediate' | 'Advanced' | 'Expert'
 
@@ -59,9 +52,11 @@ function moveScore(move: Move) {
 
 export function GameProvider({ children }: { children: ReactNode }) {
   const engine = useRef(new Chess())
+  const gameIdRef = useRef<string | null>(null)
   const playerMoves = useRef(0)
   const verificationStarted = useRef(false)
   const [difficulty, setDifficulty] = useState<Difficulty>('Intermediate')
+  const [gameId, setGameId] = useState<string | null>(null)
   const [fen, setFen] = useState(engine.current.fen())
   const [history, setHistory] = useState<Move[]>([])
   const [turn, setTurn] = useState<'w' | 'b'>('w')
@@ -164,19 +159,15 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  function syncState() {
-    const currentHistory = engine.current.history({ verbose: true })
-    setFen(engine.current.fen())
-    setHistory(currentHistory)
+  function syncState(authoritativeFen?: string, status?: ApiGame['status']) {
+    const currentFen = authoritativeFen ?? engine.current.fen()
+    setFen(currentFen)
+    setHistory(engine.current.history({ verbose: true }))
     setTurn(engine.current.turn())
-    const over = engine.current.isGameOver()
-    setGameOver(over)
-    setInCheck(engine.current.inCheck())
-    setIsCheckmate(engine.current.isCheckmate())
-    setIsDraw(engine.current.isDraw())
+    setGameOver(engine.current.isGameOver())
   }
 
-  function startNewGame() {
+  function restoreGame(snapshot: GameHistory) {
     engine.current = new Chess()
     playerMoves.current = 0
     verificationStarted.current = false
@@ -184,26 +175,19 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setFen(engine.current.fen())
     setTurn('w')
     setGameOver(false)
-    setInCheck(false)
-    setIsCheckmate(false)
-    setIsDraw(false)
   }
 
   function playHumanMove(from: Square, to: Square) {
     if (engine.current.turn() !== 'w' || engine.current.isGameOver()) return false
 
-    let moveResult: Move | null = null
     try {
-      moveResult = engine.current.move({ from, to, promotion: 'q' })
+      engine.current.move({ from, to, promotion: 'q' })
     } catch {
       return false
     }
 
-    if (!moveResult) return false
-
     playerMoves.current += 1
     syncState()
-    triggerSoundForMove(moveResult)
 
     if (playerMoves.current >= 2 && !verificationStarted.current) {
       verificationStarted.current = true
@@ -221,7 +205,6 @@ export function GameProvider({ children }: { children: ReactNode }) {
     if (wasWhiteToMove) engine.current.undo()
     playerMoves.current = Math.max(0, playerMoves.current - 1)
     syncState()
-    if (soundEnabled) playMoveSound(true)
   }
 
   useEffect(() => {
@@ -230,24 +213,20 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
     const timeout = window.setTimeout(() => {
       const legalMoves = engine.current.moves({ verbose: true })
-      const selectedMove = [...legalMoves].sort(
-        (first, second) => moveScore(second) - moveScore(first)
-      )[0]
+      const selectedMove = [...legalMoves]
+        .sort((first, second) => moveScore(second) - moveScore(first))[0]
 
       if (!selectedMove) return
-      const moveResult = engine.current.move({
+      engine.current.move({
         from: selectedMove.from,
         to: selectedMove.to,
         promotion: selectedMove.promotion,
       })
       syncState()
-      if (moveResult) {
-        triggerSoundForMove(moveResult)
-      }
     }, difficulty === 'Beginner' ? 450 : 750)
 
     return () => window.clearTimeout(timeout)
-  }, [fen, difficulty, soundEnabled])
+  }, [fen, difficulty])
 
   const value: GameContextValue = {
     difficulty,
@@ -257,19 +236,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
     lastMove: history.at(-1) ?? null,
     turn,
     gameOver,
-    inCheck,
-    isCheckmate,
-    isDraw,
     playerMoveCount: playerMoves.current,
-    soundEnabled,
-    setSoundEnabled,
-    showLegalMoves,
-    setShowLegalMoves,
-    boardTheme,
-    setBoardTheme,
-    pieceStyle,
-    setPieceStyle,
     playHumanMove,
+    retryAiMove,
     undoMove,
     startNewGame,
   }

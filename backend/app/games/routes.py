@@ -1,13 +1,4 @@
 import chess
-from app.services.ai_engine import choose_ai_move
-from app.services.move_analyzer import analyze_human_move
-from bson import ObjectId
-from flask import jsonify, request
-from flask_jwt_extended import (
-    get_jwt_identity,
-    jwt_required,
-)
-
 from datetime import datetime, timezone
 
 from bson import ObjectId
@@ -15,27 +6,30 @@ from flask import jsonify, request
 
 from app.database import get_database
 from app.games import games_blueprint
+from app.services.ai_engine import choose_ai_move
+from app.services.move_analyzer import analyze_human_move
 
 
-STARTING_FEN = (
-    "rnbqkbnr/pppppppp/8/8/8/8/"
-    "PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-)
+STARTING_FEN = chess.STARTING_FEN
 
 VALID_AI_LEVELS = ["easy", "medium", "hard"]
-def current_user_object_id():
-    identity = get_jwt_identity()
-
-    if not identity:
-        return None
-
-    if not ObjectId.is_valid(identity):
-        return None
-
-    return ObjectId(identity)
+VALID_DIFFICULTIES = {
+    "beginner": "easy",
+    "intermediate": "medium",
+    "advanced": "hard",
+    "expert": "hard",
+}
 
 
 def serialize_game(game):
+    difficulty = game.get("difficulty")
+    if difficulty is None:
+        difficulty = {
+            "easy": "Beginner",
+            "medium": "Intermediate",
+            "hard": "Advanced",
+        }.get(game.get("ai_level", "medium"), "Intermediate")
+
     return {
         "id": str(game["_id"]),
         "human_player_id": str(game["white_player_id"]),
@@ -45,6 +39,7 @@ def serialize_game(game):
             "level": game.get("ai_level", "medium"),
             "color": "black",
         },
+        "difficulty": difficulty,
         "status": game["status"],
         "result": game.get("result", "pending"),
         "current_fen": game.get("current_fen", STARTING_FEN),
@@ -63,7 +58,15 @@ def serialize_game(game):
 @games_blueprint.post("/ai")
 def create_ai_game():
     data = request.get_json(silent=True) or {}
-    ai_level = str(data.get("ai_level", "medium")).lower()
+    difficulty = str(data.get("difficulty", "Intermediate")).strip().lower()
+    ai_level = VALID_DIFFICULTIES.get(difficulty)
+    if ai_level is None:
+        ai_level = str(data.get("ai_level", "medium")).lower()
+        difficulty = {
+            "easy": "beginner",
+            "medium": "intermediate",
+            "hard": "advanced",
+        }.get(ai_level, "")
 
     if ai_level not in VALID_AI_LEVELS:
         return jsonify(
@@ -72,6 +75,14 @@ def create_ai_game():
                 "message": "AI level must be easy, medium or hard.",
             }
         ), 400
+    if not difficulty:
+        return jsonify(
+            {
+                "success": False,
+                "message": "Difficulty must be Beginner, Intermediate, Advanced or Expert.",
+            }
+        ), 400
+    difficulty = difficulty.title()
 
     database = get_database()
     player_id = ObjectId()
@@ -81,6 +92,7 @@ def create_ai_game():
         "black_player_id": None,
         "opponent_type": "ai",
         "ai_level": ai_level,
+        "difficulty": difficulty,
         "status": "active",
         "result": "pending",
         "current_fen": STARTING_FEN,
@@ -169,18 +181,7 @@ def serialize_move(move):
     }
     
 @games_blueprint.post("/<game_id>/ai-move")
-@jwt_required()
 def make_ai_move(game_id):
-    user_id = current_user_object_id()
-
-    if user_id is None:
-        return jsonify(
-            {
-                "success": False,
-                "message": "Invalid authentication token.",
-            }
-        ), 401
-
     if not ObjectId.is_valid(game_id):
         return jsonify(
             {
@@ -194,7 +195,6 @@ def make_ai_move(game_id):
     game = database.games.find_one(
         {
             "_id": ObjectId(game_id),
-            "white_player_id": user_id,
             "opponent_type": "ai",
         }
     )
@@ -265,19 +265,18 @@ def make_ai_move(game_id):
     game_status = "active"
     game_result = "pending"
     completed_at = None
-    next_turn = "white"
 
     if is_checkmate:
         game_status = "completed"
-        game_result = "ai_win"
+        game_result = "black_win"
         completed_at = datetime.now(timezone.utc)
-        next_turn = None
 
     elif board.is_game_over():
         game_status = "completed"
         game_result = "draw"
         completed_at = datetime.now(timezone.utc)
-        next_turn = None
+    stored_turn = "white" if board.turn == chess.WHITE else "black"
+    response_turn = stored_turn if game_status == "active" else None
 
     move_document = {
         "game_id": game["_id"],
@@ -311,7 +310,7 @@ def make_ai_move(game_id):
         {
             "$set": {
                 "current_fen": fen_after,
-                "current_turn": next_turn,
+                "current_turn": stored_turn,
                 "status": game_status,
                 "result": game_result,
                 "completed_at": completed_at,
@@ -328,7 +327,7 @@ def make_ai_move(game_id):
             "game": {
                 "id": str(game["_id"]),
                 "current_fen": fen_after,
-                "current_turn": next_turn,
+                "current_turn": response_turn,
                 "status": game_status,
                 "result": game_result,
                 "secret_chat_open": game.get(
@@ -475,7 +474,7 @@ def make_player_move(game_id):
 
     if is_checkmate:
         game_status = "completed"
-        game_result = "human_win"
+        game_result = "white_win"
         completed_at = datetime.now(timezone.utc)
 
     elif board.is_game_over():
@@ -555,17 +554,8 @@ def make_player_move(game_id):
             analysis["trigger_type"]
         )
 
-    stored_turn = (
-        "black"
-        if game_status == "active"
-        else "white"
-    )
-
-    response_turn = (
-        "black"
-        if game_status == "active"
-        else None
-    )
+    stored_turn = "white" if board.turn == chess.WHITE else "black"
+    response_turn = stored_turn if game_status == "active" else None
 
     database.games.update_one(
         {"_id": game["_id"]},
@@ -623,18 +613,7 @@ def make_player_move(game_id):
     ), 200
     
 @games_blueprint.get("/<game_id>/history")
-@jwt_required()
 def get_game_history(game_id):
-    user_id = current_user_object_id()
-
-    if user_id is None:
-        return jsonify(
-            {
-                "success": False,
-                "message": "Invalid authentication token.",
-            }
-        ), 401
-
     if not ObjectId.is_valid(game_id):
         return jsonify(
             {
@@ -648,7 +627,6 @@ def get_game_history(game_id):
     game = database.games.find_one(
         {
             "_id": ObjectId(game_id),
-            "white_player_id": user_id,
             "opponent_type": "ai",
         }
     )
@@ -661,11 +639,12 @@ def get_game_history(game_id):
             }
         ), 404
 
-    moves = list(
+    all_moves = list(
         database.moves.find(
             {"game_id": game["_id"]}
         ).sort("move_number", 1)
     )
+    moves = [move for move in all_moves if not move.get("undone", False)]
 
     serialized_moves = [
         serialize_move(move)
@@ -725,7 +704,87 @@ def get_game_history(game_id):
                 ),
             },
             "move_count": len(serialized_moves),
+            "stored_move_count": len(all_moves),
             "moves": serialized_moves,
             "state_is_consistent": state_is_consistent,
+        }
+    ), 200
+
+
+@games_blueprint.post("/<game_id>/undo")
+def undo_game_turn(game_id):
+    if not ObjectId.is_valid(game_id):
+        return jsonify(
+            {"success": False, "message": "Invalid game ID."}
+        ), 400
+
+    database = get_database()
+    game = database.games.find_one(
+        {
+            "_id": ObjectId(game_id),
+            "opponent_type": "ai",
+        }
+    )
+    if game is None:
+        return jsonify(
+            {"success": False, "message": "AI game not found."}
+        ), 404
+
+    all_moves = list(
+        database.moves.find({"game_id": game["_id"]}).sort("move_number", 1)
+    )
+    active_moves = [move for move in all_moves if not move.get("undone", False)]
+    if not active_moves:
+        return jsonify(
+            {"success": False, "message": "There are no moves to undo."}
+        ), 409
+
+    undo_count = (
+        2
+        if active_moves[-1].get("actor") == "ai" and len(active_moves) >= 2
+        else 1
+    )
+    undone_moves = active_moves[-undo_count:]
+    undone_at = datetime.now(timezone.utc)
+    for move in undone_moves:
+        database.moves.update_one(
+            {"_id": move["_id"]},
+            {"$set": {"undone": True, "undone_at": undone_at}},
+        )
+
+    remaining_moves = active_moves[:-undo_count]
+    position_fen = (
+        remaining_moves[-1]["fen_after"]
+        if remaining_moves
+        else STARTING_FEN
+    )
+    board = chess.Board(position_fen)
+    database.games.update_one(
+        {"_id": game["_id"]},
+        {
+            "$set": {
+                "current_fen": position_fen,
+                "current_turn": "white" if board.turn == chess.WHITE else "black",
+                "status": "active",
+                "result": "pending",
+                "completed_at": None,
+                "difficulty": game.get("difficulty", "Intermediate"),
+            }
+        },
+    )
+
+    return jsonify(
+        {
+            "success": True,
+            "game": {
+                "id": str(game["_id"]),
+                "current_fen": position_fen,
+                "current_turn": "white" if board.turn == chess.WHITE else "black",
+                "status": "active",
+                "result": "pending",
+            },
+            "moves": [serialize_move(move) for move in remaining_moves],
+            "move_count": len(remaining_moves),
+            "stored_move_count": len(all_moves),
         }
     ), 200

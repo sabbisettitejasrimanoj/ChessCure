@@ -226,19 +226,18 @@ const difficulties: {
   elo: string
   Icon: typeof Sparkles
 }[] = [
-  { name: 'Beginner', detail: 'Learn the fundamentals', elo: '800', Icon: Sparkles },
-  { name: 'Intermediate', detail: 'A balanced challenge', elo: '1,200', Icon: Award },
-  { name: 'Advanced', detail: 'For experienced tacticians', elo: '1,600', Icon: Crown },
-  { name: 'Expert', detail: 'A true grandmaster test', elo: '2,000', Icon: ShieldCheck },
-]
+    { name: 'Beginner', detail: 'Learn the fundamentals', elo: '800', Icon: Sparkles },
+    { name: 'Intermediate', detail: 'A balanced challenge', elo: '1,200', Icon: Award },
+    { name: 'Advanced', detail: 'For experienced tacticians', elo: '1,600', Icon: Crown },
+    { name: 'Expert', detail: 'A true grandmaster test', elo: '2,000', Icon: ShieldCheck },
+  ]
 
 export function DifficultyPage() {
   const navigate = useNavigate()
-  const { difficulty, setDifficulty, startNewGame } = useGame()
+  const { difficulty, setDifficulty, startNewGame, isBusy, apiError } = useGame()
 
-  function beginMatch() {
-    startNewGame()
-    navigate('/game')
+  async function beginMatch() {
+    if (await startNewGame()) navigate('/game')
   }
 
   return (
@@ -372,11 +371,11 @@ export function GamePage() {
     return () => window.clearTimeout(timeout)
   }, [navigate, showToast])
 
-  function selectSquare(square: Square) {
-    if (turn !== 'w' || gameOver) return
+  async function selectSquare(square: Square) {
+    if (turn !== 'w' || gameOver || isBusy || !gameId) return
     if (selected && legalTargets.includes(square)) {
-      const shouldVerify = playHumanMove(selected, square)
       setSelected(null)
+      const shouldVerify = await playHumanMove(selected, square)
       if (shouldVerify) setShowToast(true)
       return
     }
@@ -576,9 +575,8 @@ export function GamePage() {
               <span className="eyebrow">ON THE BOARD</span>
               <div className="turn-indicator">
                 <span
-                  className={`turn-dot${
-                    turn === 'b' ? ' turn-dot--ai' : ''
-                  }${inCheck ? ' turn-dot--check' : ''}`}
+                  className={`turn-dot${turn === 'b' ? ' turn-dot--ai' : ''
+                    }${inCheck ? ' turn-dot--check' : ''}`}
                 />
                 <strong>
                   {gameOver
@@ -644,9 +642,8 @@ export function GamePage() {
               <span className="eyebrow">MATCH STATUS</span>
               <div className="status-indicator-row">
                 <span
-                  className={`status-dot${
-                    gameOver ? ' status-dot--complete' : ' status-dot--active'
-                  }`}
+                  className={`status-dot${gameOver ? ' status-dot--complete' : ' status-dot--active'
+                    }`}
                 />
                 <strong>{gameOver ? 'Match Concluded' : 'In Progress'}</strong>
               </div>
